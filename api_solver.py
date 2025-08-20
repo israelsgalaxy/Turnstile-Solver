@@ -6,6 +6,7 @@ import json
 import random
 import logging
 import asyncio
+import aiofiles
 import argparse
 from quart import Quart, request, jsonify
 from camoufox.async_api import AsyncCamoufox
@@ -90,6 +91,7 @@ class TurnstileAPIServer:
         self.useragent = useragent
         self.thread_count = thread
         self.browser_pool = asyncio.Queue()
+        self.results_file_lock = asyncio.Lock()
         self.browser_args = []
         if useragent:
             self.browser_args.append(f"--user-agent={useragent}")
@@ -107,12 +109,14 @@ class TurnstileAPIServer:
             logger.warning(f"Error loading results: {str(e)}. Starting with an empty results dictionary.")
         return {}
 
-    def _save_results(self):
+    async def _save_results(self):
         """Save results to results.json."""
         try:
-            with open("results.json", "w") as result_file:
-                json.dump(self.results, result_file, indent=4)
-        except IOError as e:
+            results = json.dumps(self.results, indent=4)
+            async with self.results_file_lock:
+                async with aiofiles.open("results.json", "w") as f:
+                    await f.write(results)
+        except Exception as e:
             logger.error(f"Error saving results to file: {str(e)}")
 
     def _setup_routes(self) -> None:
@@ -213,8 +217,7 @@ class TurnstileAPIServer:
                         logger.success(f"Browser {index}: Successfully solved captcha - {COLORS.get('MAGENTA')}{turnstile_check[:10]}{COLORS.get('RESET')} in {COLORS.get('GREEN')}{elapsed_time}{COLORS.get('RESET')} Seconds")
 
                         self.results[task_id] = {"value": turnstile_check, "elapsed_time": elapsed_time, "cf_clearance": next((x["value"] for x in await context.cookies() if x["name"] == "cf_clearance"))}
-                        self._save_results()
-                        # await asyncio.sleep(600)
+                        await self._save_results()
                         break
                 except:
                     pass
