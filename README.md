@@ -114,7 +114,7 @@ A Python-based Turnstile solver using the patchright library, featuring multi-th
 | `--browser_type` | `chromium`  | `string` | Specify the browser type for the solver. Supported options: chromium, chrome, msedge, camoufox      |
 | `--thread`     | `1`      | `integer` | Sets the number of browser threads to use in multi-threaded mode.                           |
 | `--host`       | `127.0.0.1` | `string`  | Specifies the IP address the API solver runs on.                                            |
-| `--port`       | `5000`   | `integer` | Sets the port the API solver listens on.                                                    |
+| `--port`       | `80`   | `integer` | Sets the port the API solver listens on.                                                    |
 
 ---
 
@@ -123,7 +123,7 @@ A Python-based Turnstile solver using the patchright library, featuring multi-th
 To start the container, use:
 - Change the TZ environment variable and ports to the correct one for yourself:
 ```sh
-docker run -d -p 3389:3389 -p 5000:5000 -e TZ=Asia/Baku --name turnstile_solver theyka/turnstile_solver:latest
+docker run -d -p 3389:3389 -p 80:80 -e TZ=Asia/Baku --name turnstile_solver theyka/turnstile_solver:latest
 ```
 
 #### Connecting to the Container
