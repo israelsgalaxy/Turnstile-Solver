@@ -115,7 +115,6 @@ A Python-based Turnstile solver using the patchright library, featuring multi-th
 | `--thread`     | `1`      | `integer` | Sets the number of browser threads to use in multi-threaded mode.                           |
 | `--host`       | `127.0.0.1` | `string`  | Specifies the IP address the API solver runs on.                                            |
 | `--port`       | `5000`   | `integer` | Sets the port the API solver listens on.                                                    |
-| `--proxy`       | `False`   | `boolean` | Select a random proxy from proxies.txt for solving captchas                                                   |
 
 ---
 
@@ -149,6 +148,7 @@ docker run -d -p 3389:3389 -p 5000:5000 -e TZ=Asia/Baku --name turnstile_solver 
 | `sitekey`  | string  | The site key for the CAPTCHA to be solved. (e.g., `0x4AAAAAAA`) | Yes      |
 | `action`   | string  | Action to trigger during CAPTCHA solving, e.g., `login`            | No       |
 | `cdata`    | string  | Custom data that can be used for additional CAPTCHA parameters.    | No       |
+| `proxy`    | string  | Proxy to be used when solving in format `protocol://ip:port` or `protocol://ip:port:username:password`.    | No       |
 
 #### Response:
 
@@ -178,7 +178,8 @@ If the CAPTCHA is solved successfully, the server will respond with the followin
 ```json
 {
   "elapsed_time": 7.625,
-  "value": "0.KBtT-r"
+  "value": "0.KBtT-r",
+  "cf_clearance": "aYXJA"
 }
 ```
 

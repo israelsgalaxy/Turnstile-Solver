@@ -81,7 +81,7 @@ class TurnstileAPIServer:
     </html>
     """
 
-    def __init__(self, headless: bool, useragent: str, debug: bool, browser_type: str, thread: int, proxy_support: bool):
+    def __init__(self, headless: bool, useragent: str, debug: bool, browser_type: str, thread: int):
         self.app = Quart(__name__)
         self.debug = debug
         self.results = self._load_results()
@@ -89,7 +89,6 @@ class TurnstileAPIServer:
         self.headless = headless
         self.useragent = useragent
         self.thread_count = thread
-        self.proxy_support = proxy_support
         self.browser_pool = asyncio.Queue()
         self.browser_args = []
         if useragent:
@@ -159,31 +158,19 @@ class TurnstileAPIServer:
         logger.success(f"Browser pool initialized with {self.browser_pool.qsize()} browsers")
 
 
-    async def _solve_turnstile(self, task_id: str, url: str, sitekey: str, action: str = None, cdata: str = None):
+    async def _solve_turnstile(self, task_id: str, url: str, sitekey: str, action: str = None, cdata: str = None, proxy: str = None):
         """Solve the Turnstile challenge."""
-        proxy = None
-
         index, browser = await self.browser_pool.get()
 
-        if self.proxy_support:
-            proxy_file_path = os.path.join(os.getcwd(), "proxies.txt")
-
-            with open(proxy_file_path) as proxy_file:
-                proxies = [line.strip() for line in proxy_file if line.strip()]
-
-            proxy = random.choice(proxies) if proxies else None
-
-            if proxy:
-                parts = proxy.split(':')
-                if len(parts) == 3:
-                    context = await browser.new_context(proxy={"server": f"{proxy}"})
-                elif len(parts) == 5:
-                    proxy_scheme, proxy_ip, proxy_port, proxy_user, proxy_pass = parts
-                    context = await browser.new_context(proxy={"server": f"{proxy_scheme}://{proxy_ip}:{proxy_port}", "username": proxy_user, "password": proxy_pass})
-                else:
-                    raise ValueError("Invalid proxy format")
+        if proxy:
+            parts = proxy.split(':')
+            if len(parts) == 3:
+                context = await browser.new_context(proxy={"server": f"{proxy}"})
+            elif len(parts) == 5:
+                proxy_scheme, proxy_ip, proxy_port, proxy_user, proxy_pass = parts
+                context = await browser.new_context(proxy={"server": f"{proxy_scheme}://{proxy_ip}:{proxy_port}", "username": proxy_user, "password": proxy_pass})
             else:
-                context = await browser.new_context()
+                raise ValueError("Invalid proxy format")
         else:
             context = await browser.new_context()
 
@@ -211,9 +198,9 @@ class TurnstileAPIServer:
             if self.debug:
                 logger.debug(f"Browser {index}: Starting Turnstile response retrieval loop")
 
-            for _ in range(10):
+            for _ in range(50):
                 try:
-                    turnstile_check = await page.input_value("[name=cf-turnstile-response]", timeout=2000)
+                    turnstile_check = await page.input_value("[name=cf-turnstile-response]", timeout=10000)
                     if turnstile_check == "":
                         if self.debug:
                             logger.debug(f"Browser {index}: Attempt {_} - No Turnstile response yet")
@@ -225,8 +212,9 @@ class TurnstileAPIServer:
 
                         logger.success(f"Browser {index}: Successfully solved captcha - {COLORS.get('MAGENTA')}{turnstile_check[:10]}{COLORS.get('RESET')} in {COLORS.get('GREEN')}{elapsed_time}{COLORS.get('RESET')} Seconds")
 
-                        self.results[task_id] = {"value": turnstile_check, "elapsed_time": elapsed_time}
+                        self.results[task_id] = {"value": turnstile_check, "elapsed_time": elapsed_time, "cf_clearance": next((x["value"] for x in await context.cookies() if x["name"] == "cf_clearance"))}
                         self._save_results()
+                        # await asyncio.sleep(600)
                         break
                 except:
                     pass
@@ -254,6 +242,7 @@ class TurnstileAPIServer:
         sitekey = request.args.get('sitekey')
         action = request.args.get('action')
         cdata = request.args.get('cdata')
+        proxy = request.args.get('proxy')
 
         if not url or not sitekey:
             return jsonify({
@@ -265,7 +254,7 @@ class TurnstileAPIServer:
         self.results[task_id] = "CAPTCHA_NOT_READY"
 
         try:
-            asyncio.create_task(self._solve_turnstile(task_id=task_id, url=url, sitekey=sitekey, action=action, cdata=cdata))
+            asyncio.create_task(self._solve_turnstile(task_id=task_id, url=url, sitekey=sitekey, action=action, cdata=cdata, proxy=proxy))
 
             if self.debug:
                 logger.debug(f"Request completed with taskid {task_id}.")
@@ -343,14 +332,13 @@ def parse_args():
     parser.add_argument('--debug', type=bool, default=False, help='Enable or disable debug mode for additional logging and troubleshooting information (default: False)')
     parser.add_argument('--browser_type', type=str, default='chromium', help='Specify the browser type for the solver. Supported options: chromium, chrome, msedge, camoufox (default: chromium)')
     parser.add_argument('--thread', type=int, default=1, help='Set the number of browser threads to use for multi-threaded mode. Increasing this will speed up execution but requires more resources (default: 1)')
-    parser.add_argument('--proxy', type=bool, default=False, help='Enable proxy support for the solver (Default: False)')
     parser.add_argument('--host', type=str, default='127.0.0.1', help='Specify the IP address where the API solver runs. (Default: 127.0.0.1)')
     parser.add_argument('--port', type=str, default='5000', help='Set the port for the API solver to listen on. (Default: 5000)')
     return parser.parse_args()
 
 
-def create_app(headless: bool, useragent: str, debug: bool, browser_type: str, thread: int, proxy_support: bool) -> Quart:
-    server = TurnstileAPIServer(headless=headless, useragent=useragent, debug=debug, browser_type=browser_type, thread=thread, proxy_support=proxy_support)
+def create_app(headless: bool, useragent: str, debug: bool, browser_type: str, thread: int) -> Quart:
+    server = TurnstileAPIServer(headless=headless, useragent=useragent, debug=debug, browser_type=browser_type, thread=thread)
     return server.app
 
 
@@ -367,5 +355,5 @@ if __name__ == '__main__':
     elif args.headless is True and args.useragent is None and "camoufox" not in args.browser_type:
         logger.error(f"You must specify a {COLORS.get('YELLOW')}User-Agent{COLORS.get('RESET')} for Turnstile Solver or use {COLORS.get('GREEN')}camoufox{COLORS.get('RESET')} without useragent")
     else:
-        app = create_app(headless=args.headless, debug=args.debug, useragent=args.useragent, browser_type=args.browser_type, thread=args.thread, proxy_support=args.proxy)
+        app = create_app(headless=args.headless, debug=args.debug, useragent=args.useragent, browser_type=args.browser_type, thread=args.thread)
         app.run(host=args.host, port=int(args.port))
