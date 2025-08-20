@@ -179,7 +179,8 @@ If the CAPTCHA is solved successfully, the server will respond with the followin
 {
   "elapsed_time": 7.625,
   "value": "0.KBtT-r",
-  "cf_clearance": "aYXJA"
+  "cf_clearance": "aYXJA",
+  "user_agent": "Mozi"
 }
 ```
 

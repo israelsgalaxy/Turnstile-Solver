@@ -216,7 +216,7 @@ class TurnstileAPIServer:
 
                         logger.success(f"Browser {index}: Successfully solved captcha - {COLORS.get('MAGENTA')}{turnstile_check[:10]}{COLORS.get('RESET')} in {COLORS.get('GREEN')}{elapsed_time}{COLORS.get('RESET')} Seconds")
 
-                        self.results[task_id] = {"value": turnstile_check, "elapsed_time": elapsed_time, "cf_clearance": next((x["value"] for x in await context.cookies() if x["name"] == "cf_clearance"))}
+                        self.results[task_id] = {"value": turnstile_check, "elapsed_time": elapsed_time, "cf_clearance": next((x["value"] for x in await context.cookies() if x["name"] == "cf_clearance")), "user_agent": await page.evaluate("navigator.userAgent")}
                         await self._save_results()
                         break
                 except:
